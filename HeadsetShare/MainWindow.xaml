@@ -1,0 +1,319 @@
+﻿<Window x:Class="HeadsetShare.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:local="clr-namespace:HeadsetShare"
+        Title="HeadsetShare"
+        Width="1240" Height="800" MinWidth="1000" MinHeight="680"
+        WindowStartupLocation="CenterScreen"
+        Background="{StaticResource Background}"
+        Foreground="{StaticResource Text}"
+        FontFamily="{StaticResource Ui}"
+        UseLayoutRounding="True"
+        TextOptions.TextFormattingMode="Display">
+
+    <WindowChrome.WindowChrome>
+        <WindowChrome CaptionHeight="56" ResizeBorderThickness="6" GlassFrameThickness="0"
+                      CornerRadius="0" UseAeroCaptionButtons="False" />
+    </WindowChrome.WindowChrome>
+
+    <Window.Resources>
+        <BooleanToVisibilityConverter x:Key="BoolToVisibility" />
+
+        <!-- Gerät in der Liste links -->
+        <DataTemplate x:Key="TrayItem" DataType="{x:Type local:DeviceItem}">
+            <Border x:Name="Tile" Margin="0,0,0,8" Padding="10" CornerRadius="14"
+                    Background="{StaticResource Card}" BorderBrush="{StaticResource Line}" BorderThickness="1"
+                    Cursor="SizeAll" Tag="{Binding}"
+                    PreviewMouseLeftButtonDown="DragSource_PreviewMouseDown">
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+                    <Border Width="36" Height="36" CornerRadius="11" Background="#2A2F3C">
+                        <TextBlock Style="{StaticResource Icon}" Text="{Binding Glyph}" FontSize="16"
+                                   Foreground="{StaticResource Text}" />
+                    </Border>
+                    <StackPanel Grid.Column="1" Margin="10,0,6,0" VerticalAlignment="Center">
+                        <TextBlock Text="{Binding Name}" FontSize="13" FontWeight="SemiBold"
+                                   TextTrimming="CharacterEllipsis" ToolTip="{Binding Name}" />
+                        <TextBlock Text="{Binding KindLabel}" FontSize="11.5" Margin="0,1,0,0"
+                                   Foreground="{StaticResource TextFaint}" />
+                    </StackPanel>
+                    <StackPanel Grid.Column="2" Orientation="Horizontal">
+                        <Button Style="{StaticResource IconButton}" Content="&#xE7F3;" Tag="{Binding}"
+                                Click="SetSource_Click" ToolTip="Als Quelle nutzen: Der Ton dieses Geräts wird verteilt" />
+                        <Button Style="{StaticResource IconButton}" Content="&#xE710;" Tag="{Binding}"
+                                Foreground="{StaticResource Teal}"
+                                Click="AddTarget_Click" ToolTip="In den Hörkreis aufnehmen" />
+                    </StackPanel>
+                </Grid>
+            </Border>
+            <DataTemplate.Triggers>
+                <Trigger SourceName="Tile" Property="IsMouseOver" Value="True">
+                    <Setter TargetName="Tile" Property="Background" Value="{StaticResource CardHover}" />
+                </Trigger>
+            </DataTemplate.Triggers>
+        </DataTemplate>
+
+        <!-- Karte im Hörkreis -->
+        <DataTemplate x:Key="TargetCardTemplate" DataType="{x:Type local:TargetCard}">
+            <Border x:Name="CardBody" Width="248" Padding="14,12,14,10" CornerRadius="16"
+                    Background="{StaticResource Card}" BorderBrush="{StaticResource Line}" BorderThickness="1"
+                    Opacity="{Binding CardOpacity}" Tag="{Binding}"
+                    PreviewMouseLeftButtonDown="DragSource_PreviewMouseDown">
+                <Border.RenderTransform>
+                    <ScaleTransform ScaleX="{Binding Scale}" ScaleY="{Binding Scale}" />
+                </Border.RenderTransform>
+                <StackPanel>
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+                        <Border Width="36" Height="36" CornerRadius="11" Background="#2A2F3C" VerticalAlignment="Top"
+                                Cursor="SizeAll">
+                            <TextBlock Style="{StaticResource Icon}" Text="{Binding Glyph}" FontSize="16"
+                                       Foreground="{StaticResource Text}" />
+                        </Border>
+                        <StackPanel Grid.Column="1" Margin="10,0,4,0">
+                            <TextBox Text="{Binding Name, UpdateSourceTrigger=PropertyChanged}"
+                                     Background="Transparent" BorderThickness="0" Padding="0"
+                                     Foreground="{StaticResource Text}" CaretBrush="{StaticResource Coral}"
+                                     SelectionBrush="{StaticResource Coral}"
+                                     FontSize="13.5" FontWeight="SemiBold"
+                                     ToolTip="Zum Umbenennen klicken" />
+                            <StackPanel Orientation="Horizontal" Margin="0,3,0,0" ToolTip="{Binding StatusDetail}"
+                                        Background="Transparent">
+                                <Ellipse x:Name="StatusDot" Width="7" Height="7" Margin="0,0,6,0"
+                                         Fill="{StaticResource TextFaint}" />
+                                <TextBlock Text="{Binding Status}" FontSize="11.5"
+                                           Foreground="{StaticResource TextSoft}" />
+                            </StackPanel>
+                        </StackPanel>
+                        <Button Grid.Column="2" Style="{StaticResource IconButton}" VerticalAlignment="Top"
+                                Width="26" Height="26" FontSize="10" Content="&#xE711;" Tag="{Binding}"
+                                Click="RemoveTarget_Click" ToolTip="Aus dem Hörkreis entfernen" />
+                    </Grid>
+
+                    <Grid Height="4" Margin="0,11,0,5">
+                        <Border Background="#2A2F3C" CornerRadius="2" />
+                        <Border Background="{StaticResource CoralToTeal}" CornerRadius="2" RenderTransformOrigin="0,0.5">
+                            <Border.RenderTransform>
+                                <ScaleTransform ScaleX="{Binding Level}" />
+                            </Border.RenderTransform>
+                        </Border>
+                    </Grid>
+
+                    <Grid Margin="0,2,0,0">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="30" />
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="50" />
+                        </Grid.ColumnDefinitions>
+                        <ToggleButton Style="{StaticResource IconButton}" Margin="-7,0,0,0" Width="28" Height="28"
+                                      IsChecked="{Binding Muted}" Content="{Binding MuteGlyph}"
+                                      ToolTip="Stumm schalten" />
+                        <Slider Grid.Column="1" Style="{StaticResource SoftSlider}" Minimum="0" Maximum="100"
+                                Value="{Binding VolumePercent}" ToolTip="Lautstärke" />
+                        <TextBlock Grid.Column="2" Text="{Binding VolumeLabel}" FontSize="11.5" TextAlignment="Right"
+                                   VerticalAlignment="Center" Foreground="{StaticResource TextSoft}" />
+                    </Grid>
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="30" />
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="50" />
+                        </Grid.ColumnDefinitions>
+                        <TextBlock Style="{StaticResource Icon}" Text="&#xE916;" FontSize="13" Margin="-7,0,0,0"
+                                   Foreground="{StaticResource TextSoft}" ToolTip="Delay" />
+                        <Slider Grid.Column="1" Style="{StaticResource SoftSlider}" Foreground="{StaticResource Teal}"
+                                Minimum="0" Maximum="500" Value="{Binding DelayMs}"
+                                ToolTip="Delay: Verzögert dieses Gerät, falls es dem anderen vorausläuft" />
+                        <TextBlock Grid.Column="2" Text="{Binding DelayLabel}" FontSize="11.5" TextAlignment="Right"
+                                   VerticalAlignment="Center" Foreground="{StaticResource TextSoft}" />
+                    </Grid>
+                </StackPanel>
+            </Border>
+            <DataTemplate.Triggers>
+                <DataTrigger Binding="{Binding State}" Value="{x:Static local:TargetState.Synced}">
+                    <Setter TargetName="StatusDot" Property="Fill" Value="{StaticResource Teal}" />
+                </DataTrigger>
+                <DataTrigger Binding="{Binding State}" Value="{x:Static local:TargetState.Warning}">
+                    <Setter TargetName="StatusDot" Property="Fill" Value="{StaticResource Amber}" />
+                </DataTrigger>
+                <DataTrigger Binding="{Binding State}" Value="{x:Static local:TargetState.Offline}">
+                    <Setter TargetName="StatusDot" Property="Fill" Value="{StaticResource Danger}" />
+                </DataTrigger>
+            </DataTemplate.Triggers>
+        </DataTemplate>
+    </Window.Resources>
+
+    <Grid x:Name="Root" PreviewMouseMove="Root_PreviewMouseMove"
+          PreviewMouseLeftButtonUp="Root_PreviewMouseUp" LostMouseCapture="Root_LostMouseCapture">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="56" />
+            <RowDefinition Height="*" />
+        </Grid.RowDefinitions>
+
+        <!-- Titelleiste -->
+        <Grid Background="{StaticResource Panel}">
+            <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="20,0,0,0">
+                <Grid Width="26" Height="26" Margin="0,0,10,0">
+                    <Ellipse Stroke="{StaticResource Teal}" StrokeThickness="1.5" Opacity="0.55" />
+                    <Ellipse Width="16" Height="16" Stroke="{StaticResource Coral}" StrokeThickness="1.5" />
+                    <Ellipse Width="7" Height="7" Fill="{StaticResource Amber}" />
+                </Grid>
+                <TextBlock Text="HeadsetShare" FontFamily="{StaticResource Display}" FontSize="16" FontWeight="SemiBold"
+                           VerticalAlignment="Center" />
+                <Border x:Name="StatusPill" Margin="18,0,0,0" Padding="11,5" CornerRadius="13"
+                        Background="#232735" VerticalAlignment="Center">
+                    <StackPanel Orientation="Horizontal">
+                        <Ellipse x:Name="StatusPillDot" Width="8" Height="8" Margin="0,0,7,0"
+                                 Fill="{StaticResource TextFaint}" />
+                        <TextBlock x:Name="StatusPillText" FontSize="12" FontWeight="SemiBold" Text="Bereit" />
+                    </StackPanel>
+                </Border>
+            </StackPanel>
+
+            <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+                <ToggleButton x:Name="MuteSourceToggle" Style="{StaticResource Pill}" Margin="0,0,8,0"
+                              VerticalAlignment="Center" WindowChrome.IsHitTestVisibleInChrome="True"
+                              Click="MuteSource_Click"
+                              ToolTip="Die Quelle selbst wird stumm, die Headsets hören weiter. Beim Beenden wird das zurückgestellt.">
+                    <StackPanel Orientation="Horizontal">
+                        <TextBlock Style="{StaticResource Icon}" Text="&#xE74F;" FontSize="13" Margin="0,0,8,0" />
+                        <TextBlock Text="Quelle stumm" VerticalAlignment="Center" />
+                    </StackPanel>
+                </ToggleButton>
+                <ToggleButton x:Name="PauseToggle" Style="{StaticResource Pill}" Margin="0,0,14,0"
+                              VerticalAlignment="Center" WindowChrome.IsHitTestVisibleInChrome="True"
+                              Click="Pause_Click" ToolTip="Verteilung anhalten oder fortsetzen">
+                    <StackPanel Orientation="Horizontal">
+                        <TextBlock x:Name="PauseGlyph" Style="{StaticResource Icon}" Text="&#xE769;" FontSize="13"
+                                   Margin="0,0,8,0" />
+                        <TextBlock x:Name="PauseText" Text="Pause" VerticalAlignment="Center" />
+                    </StackPanel>
+                </ToggleButton>
+                <Button Style="{StaticResource WindowButton}" Content="&#xE921;" Click="Minimize_Click"
+                        WindowChrome.IsHitTestVisibleInChrome="True" />
+                <Button x:Name="MaximizeButton" Style="{StaticResource WindowButton}" Content="&#xE922;"
+                        Click="Maximize_Click" WindowChrome.IsHitTestVisibleInChrome="True" />
+                <Button Style="{StaticResource CloseButton}" Content="&#xE8BB;" Click="Close_Click"
+                        WindowChrome.IsHitTestVisibleInChrome="True" />
+            </StackPanel>
+        </Grid>
+
+        <Grid Grid.Row="1">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="300" />
+                <ColumnDefinition Width="*" />
+            </Grid.ColumnDefinitions>
+
+            <!-- Geräteliste -->
+            <Border x:Name="TrayPanel" Background="{StaticResource Panel}" BorderBrush="{StaticResource Line}"
+                    BorderThickness="0,1,1,0" Padding="16,18,16,14">
+                <Grid>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="*" />
+                        <RowDefinition Height="Auto" />
+                    </Grid.RowDefinitions>
+                    <StackPanel Margin="4,0,0,14">
+                        <TextBlock Text="Deine Geräte" FontFamily="{StaticResource Display}" FontSize="18"
+                                   FontWeight="SemiBold" />
+                        <TextBlock Text="Zieh ein Gerät in den Hörkreis." FontSize="12.5" Margin="0,3,0,0"
+                                   Foreground="{StaticResource TextSoft}" />
+                    </StackPanel>
+                    <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto">
+                        <Grid>
+                            <ItemsControl x:Name="TrayList" ItemTemplate="{StaticResource TrayItem}" />
+                            <TextBlock x:Name="TrayEmpty" Text="Alle Geräte sind im Hörkreis." FontSize="12.5"
+                                       Margin="4,4,0,0" Foreground="{StaticResource TextFaint}" Visibility="Collapsed" />
+                        </Grid>
+                    </ScrollViewer>
+                    <Border x:Name="TrayDropHint" Grid.Row="0" Grid.RowSpan="3" CornerRadius="14" Margin="-6"
+                            Background="#D9151821" BorderBrush="{StaticResource TextSoft}" BorderThickness="1.5"
+                            Visibility="Collapsed" IsHitTestVisible="False">
+                        <TextBlock Text="Hier loslassen zum Entfernen" HorizontalAlignment="Center"
+                                   VerticalAlignment="Center" FontSize="13" Foreground="{StaticResource Text}" />
+                    </Border>
+                </Grid>
+            </Border>
+
+            <!-- Hörkreis -->
+            <Grid x:Name="StageHost" Grid.Column="1" ClipToBounds="True" SizeChanged="StageHost_SizeChanged">
+                <local:StageView x:Name="Stage" />
+
+                <!-- Beschriftung der Quelle auf dem Orb -->
+                <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center" Width="124" IsHitTestVisible="False">
+                    <TextBlock x:Name="SourceGlyph" Style="{StaticResource Icon}" FontSize="22" Margin="0,0,0,5"
+                               Foreground="#1B1208" Text="&#xE7F5;" />
+                    <TextBlock Text="QUELLE" FontSize="10" FontWeight="Bold" TextAlignment="Center"
+                               Foreground="#4A2A18" />
+                    <TextBlock x:Name="SourceName" FontSize="12.5" FontWeight="SemiBold" TextAlignment="Center"
+                               TextWrapping="Wrap" MaxHeight="36" TextTrimming="CharacterEllipsis"
+                               Foreground="#1B1208" Margin="0,1,0,0" Text="Bitte wählen" />
+                </StackPanel>
+
+                <ItemsControl x:Name="CardsHost" ItemTemplate="{StaticResource TargetCardTemplate}" Focusable="False">
+                    <ItemsControl.ItemsPanel>
+                        <ItemsPanelTemplate>
+                            <Canvas />
+                        </ItemsPanelTemplate>
+                    </ItemsControl.ItemsPanel>
+                    <ItemsControl.ItemContainerStyle>
+                        <Style TargetType="ContentPresenter">
+                            <Setter Property="Canvas.Left" Value="{Binding X}" />
+                            <Setter Property="Canvas.Top" Value="{Binding Y}" />
+                        </Style>
+                    </ItemsControl.ItemContainerStyle>
+                </ItemsControl>
+
+                <!-- Hilfetext bei leerem Kreis -->
+                <StackPanel x:Name="EmptyHint" HorizontalAlignment="Center" VerticalAlignment="Bottom"
+                            Margin="0,0,0,84" IsHitTestVisible="False">
+                    <TextBlock Text="Zieh ein Headset in den Kreis" FontFamily="{StaticResource Display}" FontSize="20"
+                               FontWeight="SemiBold" TextAlignment="Center" />
+                    <TextBlock Text="Alle Geräte hier hören denselben Ton, die Mitte gibt ihn vor."
+                               FontSize="13" Margin="0,4,0,0" TextAlignment="Center"
+                               Foreground="{StaticResource TextSoft}" />
+                </StackPanel>
+
+                <!-- Hinweise -->
+                <Border x:Name="Banner" VerticalAlignment="Bottom" HorizontalAlignment="Center" Margin="24,0,24,18"
+                        Padding="14,9" CornerRadius="14" Background="#2B2418" BorderBrush="#5A4620" BorderThickness="1"
+                        Visibility="Collapsed">
+                    <StackPanel Orientation="Horizontal">
+                        <TextBlock Style="{StaticResource Icon}" Text="&#xE7BA;" FontSize="14"
+                                   Foreground="{StaticResource Amber}" Margin="0,0,10,0" />
+                        <TextBlock x:Name="BannerText" FontSize="12.5" VerticalAlignment="Center" MaxWidth="560"
+                                   TextWrapping="Wrap" />
+                        <Button x:Name="BannerAction" Style="{StaticResource Pill}" Height="28" Margin="12,0,0,0"
+                                FontSize="12" Click="BannerAction_Click" />
+                    </StackPanel>
+                </Border>
+            </Grid>
+        </Grid>
+
+        <!-- Das gezogene Gerät schwebt über allem -->
+        <Canvas Grid.RowSpan="2" IsHitTestVisible="False">
+            <Border x:Name="Ghost" Visibility="Collapsed" Padding="12,9" CornerRadius="14"
+                    Background="#2E3442" BorderBrush="{StaticResource Coral}" BorderThickness="1.5">
+                <Border.Effect>
+                    <DropShadowEffect BlurRadius="30" ShadowDepth="8" Opacity="0.55" Color="Black" />
+                </Border.Effect>
+                <StackPanel>
+                    <StackPanel Orientation="Horizontal">
+                        <TextBlock x:Name="GhostGlyph" Style="{StaticResource Icon}" FontSize="15" Margin="0,0,9,0" />
+                        <TextBlock x:Name="GhostName" FontSize="13" FontWeight="SemiBold" />
+                    </StackPanel>
+                    <TextBlock x:Name="GhostHint" FontSize="11.5" Margin="24,2,0,0" Foreground="{StaticResource TextSoft}"
+                               Visibility="Collapsed" />
+                </StackPanel>
+            </Border>
+        </Canvas>
+    </Grid>
+</Window>
