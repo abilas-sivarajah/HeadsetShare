@@ -1,0 +1,112 @@
+name: Build, Test und Release
+
+on:
+  push:
+    branches: [main]
+    paths-ignore:
+      - '**.md'
+      - 'docs/**'
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+# Releases laufen nacheinander, sonst könnten zwei Pushes dieselbe Version vergeben.
+concurrency:
+  group: build-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  build:
+    runs-on: windows-latest
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          fetch-tags: true
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Version bestimmen
+        id: version
+        shell: pwsh
+        run: |
+          $version = ./build/next-version.ps1
+          "version=$version" >> $env:GITHUB_OUTPUT
+          Write-Output "Version: $version"
+
+      - name: Tests
+        run: dotnet test HeadsetShare.slnx -c Release --logger "console;verbosity=normal"
+
+      - name: App veröffentlichen
+        shell: pwsh
+        run: >
+          dotnet publish HeadsetShare/HeadsetShare.csproj -c Release -r win-x64 --self-contained true
+          -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -p:DebugType=none
+          -p:Version=${{ steps.version.outputs.version }} -o publish/app
+
+      - name: MSI bauen
+        shell: pwsh
+        run: >
+          dotnet build installer/HeadsetShare.Installer.wixproj -c Release
+          -p:ProductVersion=${{ steps.version.outputs.version }}
+          -o publish/msi
+
+      - name: MSI installieren und deinstallieren
+        shell: pwsh
+        run: |
+          $msi = (Resolve-Path publish/msi/HeadsetShare.msi).Path
+          $app = Join-Path $env:ProgramFiles 'HeadsetShare\HeadsetShare.exe'
+
+          $install = Start-Process msiexec -ArgumentList "/i `"$msi`" /qn /l*v install.log" -Wait -PassThru
+          if ($install.ExitCode -ne 0) { Get-Content install.log -Tail 40; throw "Installation fehlgeschlagen: $($install.ExitCode)" }
+          if (-not (Test-Path $app)) { throw "App wurde nicht installiert: $app" }
+
+          $version = (Get-Item $app).VersionInfo.ProductVersion
+          if ($version -notlike '${{ steps.version.outputs.version }}*') { throw "Falsche Version installiert: $version" }
+
+          $startMenu = Join-Path $env:ProgramData 'Microsoft\Windows\Start Menu\Programs\HeadsetShare.lnk'
+          $desktop = Join-Path $env:PUBLIC 'Desktop\HeadsetShare.lnk'
+          if (-not (Test-Path $startMenu)) { throw "Startmenü-Verknüpfung fehlt: $startMenu" }
+          if (-not (Test-Path $desktop)) { throw "Desktop-Verknüpfung fehlt: $desktop" }
+
+          $remove = Start-Process msiexec -ArgumentList "/x `"$msi`" /qn" -Wait -PassThru
+          if ($remove.ExitCode -ne 0) { throw "Deinstallation fehlgeschlagen: $($remove.ExitCode)" }
+          if (Test-Path $app) { throw 'App wurde nicht entfernt' }
+          if (Test-Path $desktop) { throw 'Desktop-Verknüpfung wurde nicht entfernt' }
+
+      - name: MSI benennen
+        shell: pwsh
+        run: Rename-Item publish/msi/HeadsetShare.msi "HeadsetShare-v${{ steps.version.outputs.version }}-x64.msi"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: installer
+          path: publish/msi/*.msi
+          if-no-files-found: error
+
+  release:
+    needs: build
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: windows-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: installer
+
+      - name: Release erstellen
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ needs.build.outputs.version }}
+        run: >
+          gh release create "v$env:VERSION" "HeadsetShare-v$env:VERSION-x64.msi"
+          --repo "$env:GITHUB_REPOSITORY" --target "$env:GITHUB_SHA"
+          --title "HeadsetShare v$env:VERSION" --generate-notes

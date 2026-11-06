@@ -1,0 +1,36 @@
+<Wix xmlns="http://wixtoolset.org/schemas/v4/wxs">
+
+  <!-- Der UpgradeCode darf sich nie ändern, sonst ersetzen neue Versionen die alte nicht mehr. -->
+  <Package Name="HeadsetShare"
+           Manufacturer="abilas-sivarajah"
+           Version="$(var.ProductVersion)"
+           UpgradeCode="E4406767-EE8F-4748-B4A6-95E25F8211E7"
+           Scope="perMachine"
+           Language="1031"
+           Codepage="1252">
+
+    <MajorUpgrade DowngradeErrorMessage="Eine neuere Version von HeadsetShare ist bereits installiert." />
+    <MediaTemplate EmbedCab="yes" />
+
+    <Icon Id="app.ico" SourceFile="..\HeadsetShare\Assets\app.ico" />
+    <Property Id="ARPPRODUCTICON" Value="app.ico" />
+    <Property Id="ARPURLINFOABOUT" Value="https://github.com/abilas-sivarajah/HeadsetShare" />
+
+    <StandardDirectory Id="ProgramFiles6432Folder">
+      <Directory Id="INSTALLFOLDER" Name="HeadsetShare" />
+    </StandardDirectory>
+    <StandardDirectory Id="ProgramMenuFolder" />
+    <StandardDirectory Id="DesktopFolder" />
+
+    <Feature Id="Main">
+      <Component Directory="INSTALLFOLDER">
+        <File Id="AppExe" Source="$(var.PublishedApp)" Name="HeadsetShare.exe" KeyPath="yes">
+          <Shortcut Id="StartMenuShortcut" Directory="ProgramMenuFolder" Name="HeadsetShare"
+                    WorkingDirectory="INSTALLFOLDER" Icon="app.ico" Advertise="yes" />
+          <Shortcut Id="DesktopShortcut" Directory="DesktopFolder" Name="HeadsetShare"
+                    WorkingDirectory="INSTALLFOLDER" Icon="app.ico" Advertise="yes" />
+        </File>
+      </Component>
+    </Feature>
+  </Package>
+</Wix>
